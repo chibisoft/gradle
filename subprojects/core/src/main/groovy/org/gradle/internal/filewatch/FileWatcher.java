@@ -31,26 +31,10 @@ import java.io.File;
  */
 public interface FileWatcher extends Stoppable {
     /**
-     * Sets the directories and files to watch for changes
-     *
-     * Removes any previously assigned definition.
-     *
-     * @param inputs
-     * @see FileWatchInputs
-     */
-    void setWatchInputs(FileWatchInputs inputs);
-
-    /**
-     * Sets the single listener for changes.
-     *
-     * Removes any previously assigned listener.
-     *
-     * @param listener
-     */
-    void setListener(FileWatchListener listener);
-
-    /**
      * Starts watching for file changes on a separate background thread.
+     *
+     * @param inputs the directories and files to watch for changes
+     * @param listener the listener to report changes asynchronously
      */
-    void start();
+    void watch(FileWatchInputs inputs, FileWatchListener listener);
 }
