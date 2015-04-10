@@ -17,11 +17,11 @@
 package org.gradle.internal.filewatch;
 
 /**
- * Listener that
+ * Listener for {@link FileWatcher}
  */
 public interface FileWatchListener {
     /**
-     * Called when changes have been detected in {@link FileWatchService} or any of the
+     * Called when changes have been detected in {@link FileWatcher} or any of the
      * directories or individual files to be watched.
      *
      * @param event contains details of the change (currently no details are provided)

@@ -17,11 +17,11 @@
 package org.gradle.internal.filewatch;
 
 /**
- * Contains details of the changes that {@link FileWatchService} detected.
+ * Contains details of the changes that {@link FileWatcher} detected.
  *
  * Currently no details are provided of the change.
  *
  */
 public interface FileWatchEvent {
-
+    FileWatcher getSource();
 }

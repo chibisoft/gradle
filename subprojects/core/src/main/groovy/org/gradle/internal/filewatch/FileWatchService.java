@@ -16,39 +16,9 @@
 
 package org.gradle.internal.filewatch;
 
-import org.gradle.api.file.DirectoryTree;
-import org.gradle.internal.concurrent.Stoppable;
-
-import java.io.File;
-
 /**
- * Service for watching changes on multiple {@link DirectoryTree} or individual {@link File}s
- *
- * Designed to be used with a single set of inputs and a single listener.
- *
+ * Entry point for creating a new stateful {@link FileWatcher}
  */
-public interface FileWatchService extends Stoppable {
-    /**
-     * Sets the directories and files to watch for changes
-     *
-     * Removes any previously assigned definition.
-     *
-     * @param inputs
-     * @see FileWatchInputs
-     */
-    void setWatchInputs(FileWatchInputs inputs);
-
-    /**
-     * Sets the single listener for changes.
-     *
-     * Removes any previously assigned listener.
-     *
-     * @param listener
-     */
-    void setListener(FileWatchListener listener);
-
-    /**
-     * Starts watching for file changes on a separate background thread.
-     */
-    void start();
+public interface FileWatchService {
+    FileWatcher createFileWatcher();
 }

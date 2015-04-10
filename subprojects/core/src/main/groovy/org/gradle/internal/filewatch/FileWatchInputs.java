@@ -23,7 +23,7 @@ import java.io.File;
 import java.util.Collection;
 
 /**
- * Builder type of interface for building the input for {@link FileWatchService}
+ * Builder type of interface for building the input for {@link FileWatcher}
  *
  */
 public interface FileWatchInputs {
@@ -45,11 +45,12 @@ public interface FileWatchInputs {
 
     /**
      * Add a global includes/excludes filter to all {@link DirectoryTree} watches
+     * Filter won't be applied to individually added files.
      *
      * @param patternSet
      * @return
      */
-    FileWatchService filter(PatternSet patternSet);
+    FileWatcher filter(PatternSet patternSet);
 
     /**
      * @return all added DirectoryTree watches
