@@ -44,15 +44,6 @@ public interface FileWatchInputs {
     FileWatchInputs watch(File file);
 
     /**
-     * Add a global includes/excludes filter to all {@link DirectoryTree} watches
-     * Filter won't be applied to individually added files.
-     *
-     * @param patternSet
-     * @return
-     */
-    FileWatcher filter(PatternSet patternSet);
-
-    /**
      * @return all added DirectoryTree watches
      */
     Collection<DirectoryTree> getDirectoryTrees();
@@ -60,8 +51,4 @@ public interface FileWatchInputs {
      * @return all added File watches
      */
     Collection<File> getFiles();
-    /**
-     * @return all added filters
-     */
-    Collection<PatternSet> getFilters();
 }

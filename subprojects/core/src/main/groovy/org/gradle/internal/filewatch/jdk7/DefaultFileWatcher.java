@@ -3,7 +3,6 @@ package org.gradle.internal.filewatch.jdk7;
 import com.sun.nio.file.ExtendedWatchEventModifier;
 import com.sun.nio.file.SensitivityWatchEventModifier;
 import org.gradle.api.file.DirectoryTree;
-import org.gradle.api.tasks.util.PatternSet;
 import org.gradle.internal.filewatch.FileWatchEvent;
 import org.gradle.internal.filewatch.FileWatchInputs;
 import org.gradle.internal.filewatch.FileWatchListener;
@@ -41,7 +40,7 @@ public class DefaultFileWatcher implements FileWatcher {
             throw new IllegalArgumentException("FileWatcher cannot start watching new inputs when it's already running.");
         }
         runningFlag.set(true);
-        execution = executor.submit(new FileWatcherExecutor(this, runningFlag, listener, new ArrayList(inputs.getDirectoryTrees()), new ArrayList(inputs.getFiles()), new ArrayList(inputs.getFilters()) ));
+        execution = executor.submit(new FileWatcherExecutor(this, runningFlag, listener, new ArrayList(inputs.getDirectoryTrees()), new ArrayList(inputs.getFiles()) ));
     }
 
     @Override
@@ -77,20 +76,18 @@ public class DefaultFileWatcher implements FileWatcher {
         private final AtomicBoolean runningFlag;
         private final Collection<DirectoryTree> directoryTrees;
         private final Collection<File> files;
-        private final Collection<PatternSet> filters;
         private final FileWatchListener listener;
         private Map<WatchKey,Path> watchKeys;
         private long lastEventReceivedMillis;
         private WatchEvent.Modifier[] watchModifiers;
         private Map<Path, Set<File>> individualFilesByParentPath;
 
-        public FileWatcherExecutor(FileWatcher fileWatcher, AtomicBoolean runningFlag, FileWatchListener listener, Collection<DirectoryTree> directoryTrees, Collection<File> files, Collection<PatternSet> filters) {
+        public FileWatcherExecutor(FileWatcher fileWatcher, AtomicBoolean runningFlag, FileWatchListener listener, Collection<DirectoryTree> directoryTrees, Collection<File> files) {
             this.fileWatcher = fileWatcher;
             this.runningFlag = runningFlag;
             this.listener = listener;
             this.directoryTrees = directoryTrees;
             this.files = files;
-            this.filters = filters;
             this.watchModifiers = createWatchModifiers();
         }
 
