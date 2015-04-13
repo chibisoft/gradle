@@ -43,10 +43,10 @@ import static java.nio.file.StandardWatchEventKinds.OVERFLOW;
 class FileWatcherExecutor implements Runnable {
     // http://stackoverflow.com/a/18362404
     // make watch sensitivity as 2 seconds on MacOSX, polls every 2 seconds for changes. Default is 10 seconds.
-    private static final WatchEvent.Modifier[] WATCH_MODIFIERS = new WatchEvent.Modifier[]{SensitivityWatchEventModifier.HIGH};
-    private static final WatchEvent.Kind[] WATCH_KINDS = new WatchEvent.Kind[]{StandardWatchEventKinds.ENTRY_CREATE, StandardWatchEventKinds.ENTRY_DELETE, StandardWatchEventKinds.ENTRY_MODIFY};
-    private static final long QUIET_PERIOD_MILLIS = 1000L;
-    private static final int POLL_TIMEOUT_MILLIS = 250;
+    static final WatchEvent.Modifier[] WATCH_MODIFIERS = new WatchEvent.Modifier[]{SensitivityWatchEventModifier.HIGH};
+    static final WatchEvent.Kind[] WATCH_KINDS = new WatchEvent.Kind[]{StandardWatchEventKinds.ENTRY_CREATE, StandardWatchEventKinds.ENTRY_DELETE, StandardWatchEventKinds.ENTRY_MODIFY};
+    static final long QUIET_PERIOD_MILLIS = 1000L;
+    static final int POLL_TIMEOUT_MILLIS = 250;
     private final FileWatcher fileWatcher;
     private final AtomicBoolean runningFlag;
     private final Collection<DirectoryTree> directoryTrees;
@@ -76,7 +76,7 @@ class FileWatcherExecutor implements Runnable {
         }
     }
 
-    private boolean supportsWatchingSubTree() {
+    protected boolean supportsWatchingSubTree() {
         return OperatingSystem.current().isWindows();
     }
 
@@ -105,7 +105,7 @@ class FileWatcherExecutor implements Runnable {
 
     private void watchLoop(WatchService watchService) throws InterruptedException {
         boolean foundChanges = false;
-        while (runningFlag.get() && !Thread.currentThread().isInterrupted()) {
+        while (watchLoopRunning()) {
             if (foundChanges && (QUIET_PERIOD_MILLIS <= 0 || System.currentTimeMillis() - lastEventReceivedMillis > QUIET_PERIOD_MILLIS)) {
                 notifyChanged();
                 foundChanges = false;
@@ -159,6 +159,10 @@ class FileWatcherExecutor implements Runnable {
         }
     }
 
+    protected boolean watchLoopRunning() {
+        return runningFlag.get() && !Thread.currentThread().isInterrupted();
+    }
+
     private void notifyChanged() {
         listener.changesDetected(new FileWatchEvent() {
             @Override
@@ -169,6 +173,7 @@ class FileWatcherExecutor implements Runnable {
     }
 
     private void registerInputs(WatchService watchService) throws IOException {
+        watchKeys = new HashMap<WatchKey, Path>();
         registerDirTreeInputs(watchService);
         registerIndividualFileInputs(watchService);
     }
@@ -176,7 +181,7 @@ class FileWatcherExecutor implements Runnable {
     private void registerIndividualFileInputs(WatchService watchService) throws IOException {
         individualFilesByParentPath = new HashMap<Path, Set<File>>();
         for (File file : files) {
-            Path parent = file.getParentFile().getAbsoluteFile().toPath();
+            Path parent = dirToPath(file.getParentFile());
             Set<File> children = individualFilesByParentPath.get(parent);
             if (children == null) {
                 children = new LinkedHashSet<File>();
@@ -189,9 +194,13 @@ class FileWatcherExecutor implements Runnable {
         }
     }
 
+    protected Path dirToPath(File dir) {
+        return dir.getAbsoluteFile().toPath();
+    }
+
     private void registerDirTreeInputs(WatchService watchService) throws IOException {
         for (DirectoryTree tree : directoryTrees) {
-            registerSubTree(watchService, tree.getDir().getAbsoluteFile().toPath());
+            registerSubTree(watchService, dirToPath(tree.getDir()));
         }
     }
 
