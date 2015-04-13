@@ -122,7 +122,6 @@ class FileWatcherExecutor implements Runnable {
     protected void handleWatchKey(WatchService watchService, WatchKey watchKey) {
         Path watchedPath = (Path)watchKey.watchable();
 
-        RelativePath parentPath = toRelativePath(watchedPath.toFile(), watchedPath, null);
         DirectoryTree watchedTree = pathToDirectoryTree.get(watchedPath);
         Set<File> individualFiles = individualFilesByParentPath.get(watchedPath);
 
@@ -142,7 +141,7 @@ class FileWatcherExecutor implements Runnable {
                 Path fullPath = watchedPath.resolve(relativePath);
 
                 if(watchedTree != null) {
-                    FileTreeElement fileTreeElement = toFileTreeElement(fullPath, relativePath, parentPath);
+                    FileTreeElement fileTreeElement = toFileTreeElement(fullPath, relativePath);
                     if(!watchedTree.getPatterns().getAsExcludeSpec().isSatisfiedBy(fileTreeElement)) {
                         if (kind == ENTRY_CREATE) {
                             if (Files.isDirectory(fullPath, NOFOLLOW_LINKS) && !supportsWatchingSubTree()) {
@@ -171,13 +170,13 @@ class FileWatcherExecutor implements Runnable {
         watchKey.reset();
     }
 
-    private RelativePath toRelativePath(File file, Path path, RelativePath parentPath) {
-        return RelativePath.parse(!file.isDirectory(), parentPath, path.toString());
+    private RelativePath toRelativePath(File file, Path path) {
+        return RelativePath.parse(!file.isDirectory(), path.toString());
     }
 
-    private FileTreeElement toFileTreeElement(Path fullPath, Path relativePath, RelativePath parentPath) {
+    private FileTreeElement toFileTreeElement(Path fullPath, Path relativePath) {
         File file = fullPath.toFile();
-        return new CustomFileTreeElement(file, toRelativePath(file, relativePath, parentPath));
+        return new CustomFileTreeElement(file, toRelativePath(file, relativePath));
     }
 
     protected void handleNotifyChanges() {
@@ -242,13 +241,12 @@ class FileWatcherExecutor implements Runnable {
             registerSinglePath(watchService, treePath);
             pathToDirectoryTree.put(treePath, tree);
         } else {
-            final RelativePath parentPath = toRelativePath(treePath.toFile(), treePath, null);
             final Spec<FileTreeElement> excludeSpec = tree.getPatterns().getAsExcludeSpec();
             Files.walkFileTree(treePath, new SimpleFileVisitor<Path>() {
                 @Override
                 public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs)
                         throws IOException {
-                    FileTreeElement fileTreeElement = toFileTreeElement(dir, treePath.relativize(dir), parentPath);
+                    FileTreeElement fileTreeElement = toFileTreeElement(dir, treePath.relativize(dir));
                     if(!excludeSpec.isSatisfiedBy(fileTreeElement)) {
                         registerSinglePathNoSubtree(watchService, dir);
                         pathToDirectoryTree.put(dir, tree);
