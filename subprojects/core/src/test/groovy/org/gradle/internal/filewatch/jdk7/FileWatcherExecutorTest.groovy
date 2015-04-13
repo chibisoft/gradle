@@ -17,17 +17,11 @@
 package org.gradle.internal.filewatch.jdk7
 
 import org.gradle.api.file.DirectoryTree
-import org.gradle.api.internal.file.collections.DirectoryFileTree
 import org.gradle.internal.filewatch.FileWatchListener
 import org.gradle.internal.filewatch.FileWatcher
 import spock.lang.Specification
 
-import java.nio.file.DirectoryStream
-import java.nio.file.FileSystem
-import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.WatchKey
-import java.nio.file.WatchService
+import java.nio.file.*
 import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.spi.FileSystemProvider
 import java.util.concurrent.atomic.AtomicBoolean
@@ -93,9 +87,7 @@ class FileWatcherExecutorTest extends Specification {
 
         def dir = new File("a2/b2")
         def directoryTree = Mock(DirectoryTree)
-        directoryTree.getDir() >> {
-            dir
-        }
+        directoryTree.getDir() >> dir
         directories << directoryTree
         def dirPathMock = Mock(Path)
         def fileSystemProvider = Mock(FileSystemProvider)
@@ -106,22 +98,31 @@ class FileWatcherExecutorTest extends Specification {
         def dirWatchKey = Mock(WatchKey)
         def dirAttributes  = Mock(BasicFileAttributes)
         dirAttributes.isDirectory() >> true
+        fileSystemProvider.readAttributes(dirPathMock, _, _) >> dirAttributes
+
+        def subDirPathMock = Mock(Path)
+        subDirPathMock.getFileSystem() >> fileSystem
+
         def directoryStream = Mock(DirectoryStream)
         fileSystemProvider.newDirectoryStream(dirPathMock, Files.AcceptAllFilter.FILTER) >> directoryStream
-        directoryStream.iterator() >> Collections.emptyIterator()
+        directoryStream.iterator() >> [subDirPathMock].iterator()
+
+        def subDirStream = Mock(DirectoryStream)
+        fileSystemProvider.newDirectoryStream(subDirPathMock, Files.AcceptAllFilter.FILTER) >> subDirStream
+        subDirStream.iterator() >> Collections.emptyIterator()
+
+        def subDirAttributes  = Mock(BasicFileAttributes)
+        subDirAttributes.isDirectory() >> true
+        fileSystemProvider.readAttributes(subDirPathMock, _, _) >> subDirAttributes
+
+        def subDirWatchKey = Mock(WatchKey)
 
         when:
         fileWatcherExecutor.run()
         then:
-        filePathMock.register(watchService, FileWatcherExecutor.WATCH_KINDS, FileWatcherExecutor.WATCH_MODIFIERS) >> {
-            fileWatchKey
-        }
-        1 * dirPathMock.register(watchService, FileWatcherExecutor.WATCH_KINDS, FileWatcherExecutor.WATCH_MODIFIERS) >> {
-            dirWatchKey
-        }
-        fileSystemProvider.readAttributes(dirPathMock, _, _) >> {
-            dirAttributes
-        }
+        filePathMock.register(watchService, FileWatcherExecutor.WATCH_KINDS, FileWatcherExecutor.WATCH_MODIFIERS) >> fileWatchKey
+        1 * dirPathMock.register(watchService, FileWatcherExecutor.WATCH_KINDS, FileWatcherExecutor.WATCH_MODIFIERS) >> dirWatchKey
+        1 * subDirPathMock.register(watchService, FileWatcherExecutor.WATCH_KINDS, FileWatcherExecutor.WATCH_MODIFIERS) >> subDirWatchKey
         watchService.close()
     }
 }
