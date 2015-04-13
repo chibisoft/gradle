@@ -46,5 +46,9 @@ class DefaultFileWatcherTest extends Specification {
         }
         0 * listener._
         0 * _._
+        when: "watch is called a second time, it throws an exception"
+        fileWatcher.watch(inputs, listener)
+        then:
+        thrown IllegalStateException
     }
 }
