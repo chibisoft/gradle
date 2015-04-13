@@ -52,7 +52,6 @@ class FileWatcherExecutor implements Runnable {
     private final Collection<DirectoryTree> directoryTrees;
     private final Collection<File> files;
     private final FileWatchListener listener;
-    private Map<WatchKey, Path> watchKeys;
     private long lastEventReceivedMillis;
     private boolean foundChanges;
     private WatchEvent.Modifier[] watchModifiers;
@@ -117,12 +116,7 @@ class FileWatcherExecutor implements Runnable {
     }
 
     private void handleWatchKey(WatchService watchService, WatchKey watchKey) {
-        Path dir = watchKeys.get(watchKey);
-
-        if (dir == null) {
-            watchKey.cancel();
-            return;
-        }
+        Path watchedPath = (Path)watchKey.watchable();
 
         for (WatchEvent<?> event : watchKey.pollEvents()) {
             WatchEvent.Kind kind = event.kind();
@@ -136,30 +130,26 @@ class FileWatcherExecutor implements Runnable {
 
             if (kind.type() == Path.class) {
                 WatchEvent<Path> ev = (WatchEvent<Path>) (event);
-                Path path = ev.context();
+                Path relativePath = ev.context();
+                Path fullPath = watchedPath.resolve(relativePath);
 
                 if (kind == ENTRY_CREATE) {
-                    if (Files.isDirectory(path, NOFOLLOW_LINKS)) {
-                        if(!supportsWatchingSubTree()) {
-                            try {
-                                registerSubTree(watchService, path);
-                            } catch (IOException e) {
-                                // ignore
-                            }
+                    if (Files.isDirectory(fullPath, NOFOLLOW_LINKS) && !supportsWatchingSubTree()) {
+                        try {
+                            registerSubTree(watchService, fullPath);
+                        } catch (IOException e) {
+                            // ignore
                         }
                     }
                 } else if (kind == ENTRY_DELETE) {
-                    if (path.equals(dir)) {
+                    if (fullPath.equals(watchedPath)) {
                         watchKey.cancel();
-                        watchKeys.remove(watchKey);
                     }
                 }
             }
         }
 
-        if (!watchKey.reset()) {
-            watchKeys.remove(watchKey);
-        }
+        watchKey.reset();
     }
 
     private void handleNotifyChanges() {
@@ -183,7 +173,6 @@ class FileWatcherExecutor implements Runnable {
     }
 
     private void registerInputs(WatchService watchService) throws IOException {
-        watchKeys = new HashMap<WatchKey, Path>();
         registerDirTreeInputs(watchService);
         registerIndividualFileInputs(watchService);
     }
@@ -239,7 +228,6 @@ class FileWatcherExecutor implements Runnable {
 
     private void registerSinglePathWithModifier(WatchService watchService, Path path, WatchEvent.Modifier[] watchModifiers) throws IOException {
         WatchKey key = path.register(watchService, WATCH_KINDS, watchModifiers);
-        watchKeys.put(key, path);
     }
 
     protected WatchService createWatchService() {
