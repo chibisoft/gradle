@@ -77,7 +77,7 @@ class FileWatcherExecutorTest extends Specification {
         }
     }
 
-    def "test registering inputs"() {
+    def "test FileWatcherExecutor interaction with WatchService"() {
         given:
         def file = new File("a/b/c")
         files << file
@@ -117,12 +117,35 @@ class FileWatcherExecutorTest extends Specification {
 
         def subDirWatchKey = Mock(WatchKey)
 
+        maxWatchLoops = 1
+
+        def mockWatchEvent = Mock(WatchEvent)
+        def modifiedFilePath = Mock(Path)
+
         when:
         fileWatcherExecutor.run()
-        then:
+        then: 'watches get registered'
         filePathMock.register(watchService, FileWatcherExecutor.WATCH_KINDS, FileWatcherExecutor.WATCH_MODIFIERS) >> fileWatchKey
         1 * dirPathMock.register(watchService, FileWatcherExecutor.WATCH_KINDS, FileWatcherExecutor.WATCH_MODIFIERS) >> dirWatchKey
         1 * subDirPathMock.register(watchService, FileWatcherExecutor.WATCH_KINDS, FileWatcherExecutor.WATCH_MODIFIERS) >> subDirWatchKey
+
+        then: 'watchservice gets polled and returns a modification in a directory'
+        watchService.poll(_, _) >> dirWatchKey
+
+        1 * dirWatchKey.watchable() >> dirPathMock
+        1 * dirWatchKey.pollEvents() >> [mockWatchEvent]
+
+        mockWatchEvent.kind() >> StandardWatchEventKinds.ENTRY_MODIFY
+        mockWatchEvent.context() >> modifiedFilePath
+        modifiedFilePath.getParent() >> dirPathMock
+        modifiedFilePath.getName() >> 'modifiedfile'
+
+        then: 'relative path gets resolved'
+        1 * dirPathMock.resolve(modifiedFilePath) >> { Path other -> other }
+
+        then: 'WatchKey gets resetted'
+        1 * dirWatchKey.reset()
+        then: 'finally watchservice gets closed'
         watchService.close()
     }
 }
