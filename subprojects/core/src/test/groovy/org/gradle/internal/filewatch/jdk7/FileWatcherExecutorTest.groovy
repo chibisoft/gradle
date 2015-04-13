@@ -33,7 +33,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 class FileWatcherExecutorTest extends Specification {
     def fileWatcher
     def runningFlag
-    def fileWatchListener
+    FileWatchListener fileWatchListener
     def directories
     def files
     def watchService
@@ -74,6 +74,11 @@ class FileWatcherExecutorTest extends Specification {
             @Override
             protected boolean watchLoopRunning() {
                 watchLoopCounter++ < maxWatchLoops
+            }
+
+            @Override
+            protected boolean quietPeriodBeforeNotifyingHasElapsed() {
+                true
             }
         }
     }
@@ -149,6 +154,8 @@ class FileWatcherExecutorTest extends Specification {
 
         then: 'WatchKey gets resetted'
         1 * dirWatchKey.reset()
+        then: 'listener gets called'
+        1 * fileWatchListener.changesDetected(_)
         then: 'finally watchservice gets closed'
         watchService.close()
     }
