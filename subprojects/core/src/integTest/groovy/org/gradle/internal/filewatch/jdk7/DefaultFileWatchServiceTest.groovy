@@ -82,4 +82,21 @@ class DefaultFileWatchServiceTest extends Specification {
         then:
         0 * fileWatchListener.changesDetected(_)
     }
+
+    def "watch service should notify of new files in subdirectories"() {
+        given:
+        def fileWatchListener = Mock(FileWatchListener)
+        when:
+        fileWatcher.watch(fileWatchInputs, fileWatchListener)
+        def subdir = testDir.createDir("subdir")
+        subdir.createFile("somefile").text = "Hello world"
+        waitForChanges()
+        then:
+        1 * fileWatchListener.changesDetected(_)
+        when:
+        subdir.file('someotherfile').text = "Hello world"
+        waitForChanges()
+        then:
+        1 * fileWatchListener.changesDetected(_)
+    }
 }
