@@ -54,6 +54,7 @@ class FileWatcherExecutor implements Runnable {
     private final FileWatchListener listener;
     private Map<WatchKey, Path> watchKeys;
     private long lastEventReceivedMillis;
+    private boolean foundChanges;
     private WatchEvent.Modifier[] watchModifiers;
     private Map<Path, Set<File>> individualFilesByParentPath;
 
@@ -104,58 +105,67 @@ class FileWatcherExecutor implements Runnable {
     }
 
     private void watchLoop(WatchService watchService) throws InterruptedException {
-        boolean foundChanges = false;
+        foundChanges = false;
         while (watchLoopRunning()) {
-            if (foundChanges && (QUIET_PERIOD_MILLIS <= 0 || System.currentTimeMillis() - lastEventReceivedMillis > QUIET_PERIOD_MILLIS)) {
-                notifyChanged();
-                foundChanges = false;
-            }
             WatchKey watchKey = watchService.poll(POLL_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
             if (watchKey != null) {
                 lastEventReceivedMillis = System.currentTimeMillis();
+                handleWatchKey(watchService, watchKey);
+            }
+            handleNotifyChanges();
+        }
+    }
 
-                Path dir = watchKeys.get(watchKey);
+    private void handleWatchKey(WatchService watchService, WatchKey watchKey) {
+        Path dir = watchKeys.get(watchKey);
 
-                if (dir == null) {
-                    watchKey.cancel();
-                    continue;
-                }
+        if (dir == null) {
+            watchKey.cancel();
+            return;
+        }
 
-                for (WatchEvent<?> event : watchKey.pollEvents()) {
-                    WatchEvent.Kind kind = event.kind();
+        for (WatchEvent<?> event : watchKey.pollEvents()) {
+            WatchEvent.Kind kind = event.kind();
 
-                    if (kind == OVERFLOW) {
-                        // overflow event occurs when some change event might have been lost
-                        // notify changes in that case
-                        foundChanges = true;
-                        continue;
-                    }
+            if (kind == OVERFLOW) {
+                // overflow event occurs when some change event might have been lost
+                // notify changes in that case
+                foundChanges = true;
+                continue;
+            }
 
-                    if (kind.type() == Path.class) {
-                        WatchEvent<Path> ev = (WatchEvent<Path>) (event);
-                        Path path = ev.context();
+            if (kind.type() == Path.class) {
+                WatchEvent<Path> ev = (WatchEvent<Path>) (event);
+                Path path = ev.context();
 
-                        if (kind == ENTRY_CREATE) {
-                            if (Files.isDirectory(path, NOFOLLOW_LINKS)) {
-                                try {
-                                    registerSubTree(watchService, path);
-                                } catch (IOException e) {
-                                    // ignore
-                                }
-                            }
-                        } else if (kind == ENTRY_DELETE) {
-                            if (path.equals(dir)) {
-                                watchKey.cancel();
-                                watchKeys.remove(watchKey);
+                if (kind == ENTRY_CREATE) {
+                    if (Files.isDirectory(path, NOFOLLOW_LINKS)) {
+                        if(!supportsWatchingSubTree()) {
+                            try {
+                                registerSubTree(watchService, path);
+                            } catch (IOException e) {
+                                // ignore
                             }
                         }
                     }
-                }
-
-                if (!watchKey.reset()) {
-                    watchKeys.remove(watchKey);
+                } else if (kind == ENTRY_DELETE) {
+                    if (path.equals(dir)) {
+                        watchKey.cancel();
+                        watchKeys.remove(watchKey);
+                    }
                 }
             }
+        }
+
+        if (!watchKey.reset()) {
+            watchKeys.remove(watchKey);
+        }
+    }
+
+    private void handleNotifyChanges() {
+        if (foundChanges && (QUIET_PERIOD_MILLIS <= 0 || System.currentTimeMillis() - lastEventReceivedMillis > QUIET_PERIOD_MILLIS)) {
+            notifyChanged();
+            foundChanges = false;
         }
     }
 
