@@ -25,6 +25,7 @@ import spock.lang.Specification
 import java.nio.file.*
 import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.spi.FileSystemProvider
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -48,7 +49,7 @@ class FileWatcherExecutorTest extends Specification {
         directories = []
         files = []
         watchService = Mock(WatchService)
-        fileWatcherExecutor = new FileWatcherExecutor(fileWatcher, runningFlag, fileWatchListener, directories, files) {
+        fileWatcherExecutor = new FileWatcherExecutor(fileWatcher, runningFlag, fileWatchListener, directories, files, new CountDownLatch(1)) {
             int watchLoopCounter = 0
 
             @Override

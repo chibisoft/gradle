@@ -33,6 +33,8 @@ import java.io.IOException;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -60,14 +62,16 @@ class FileWatcherExecutor implements Runnable {
     private boolean pendingNotification;
     private Map<Path, Set<File>> individualFilesByParentPath;
     private Map<Path, DirectoryTree> pathToDirectoryTree;
+    final CountDownLatch waitUntilWatching;
 
-    public FileWatcherExecutor(FileWatcher fileWatcher, AtomicBoolean runningFlag, FileWatchListener listener, Collection<DirectoryTree> directoryTrees, Collection<File> files) {
+    public FileWatcherExecutor(FileWatcher fileWatcher, AtomicBoolean runningFlag, FileWatchListener listener, Collection<DirectoryTree> directoryTrees, Collection<File> files, CountDownLatch waitUntilWatching) {
         this.fileWatcher = fileWatcher;
         this.runningFlag = runningFlag;
         this.listener = listener;
         this.directoryTrees = directoryTrees;
         this.files = files;
         this.watchModifiers = createWatchModifiers();
+        this.waitUntilWatching = waitUntilWatching;
     }
 
     private WatchEvent.Modifier[] createWatchModifiers() {
@@ -92,6 +96,8 @@ class FileWatcherExecutor implements Runnable {
                 registerInputs(watchService);
             } catch (IOException e) {
                 throw new RuntimeException("IOException in registering watch inputs", e);
+            } finally {
+                waitUntilWatching.countDown();
             }
             try {
                 watchLoop(watchService);

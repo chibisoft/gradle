@@ -27,7 +27,22 @@ public class DefaultFileWatcher implements FileWatcher {
             throw new IllegalStateException("FileWatcher cannot start watching new inputs when it's already running.");
         }
         runningFlag.set(true);
-        execution = executor.submit(new FileWatcherExecutor(this, runningFlag, listener, new ArrayList(inputs.getDirectoryTrees()), new ArrayList(inputs.getFiles())));
+        submitWithLatch(inputs, listener);
+    }
+
+    protected void submitWithLatch(FileWatchInputs inputs, FileWatchListener listener) {
+        CountDownLatch latch = createLatch();
+        execution = executor.submit(new FileWatcherExecutor(this, runningFlag, listener, new ArrayList(inputs.getDirectoryTrees()), new ArrayList(inputs.getFiles()), latch));
+        try {
+            // wait until watching is active
+            latch.await();
+        } catch (InterruptedException e) {
+            // ignore
+        }
+    }
+
+    protected CountDownLatch createLatch() {
+        return new CountDownLatch(1);
     }
 
     @Override
