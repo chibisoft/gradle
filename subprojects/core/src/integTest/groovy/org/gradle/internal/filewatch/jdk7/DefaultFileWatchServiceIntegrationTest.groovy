@@ -98,4 +98,15 @@ class DefaultFileWatchServiceIntegrationTest extends Specification {
         then:
         1 * fileWatchListener.changesDetected(_)
     }
+
+    def "default ignored files shouldn't trigger changes"() {
+        given:
+        def fileWatchListener = Mock(FileWatchListener)
+        when:
+        fileWatcher.watch(fileWatchInputs, fileWatchListener)
+        testDir.file('some_temp_file~').text = "This change should be ignored"
+        waitForChanges()
+        then:
+        0 * fileWatchListener.changesDetected(_)
+    }
 }
