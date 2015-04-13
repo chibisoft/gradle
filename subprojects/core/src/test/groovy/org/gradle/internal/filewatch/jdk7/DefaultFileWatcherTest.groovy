@@ -22,22 +22,25 @@ import org.gradle.internal.filewatch.FileWatchListener
 import spock.lang.Specification
 
 import java.util.concurrent.ExecutorService
+import java.util.concurrent.Future
+import java.util.concurrent.TimeUnit
 
 /**
  * Created by lari on 12/04/15.
  */
 class DefaultFileWatcherTest extends Specification {
 
-    def "when watch is called, the inputs are read"() {
+    def "test watch and stop interaction with DefaultFileWatcher"() {
         given:
         def executor = Mock(ExecutorService)
         def fileWatcher = new DefaultFileWatcher(executor)
         def inputs = Mock(FileWatchInputs)
         def listener = Mock(FileWatchListener)
-        when:
+        def future = Mock(Future)
+        when: "when watch is called, the inputs are read"
         fileWatcher.watch(inputs, listener)
         then:
-        1 * executor.submit(_)
+        1 * executor.submit(_) >> future
         1 * inputs.getDirectoryTrees() >> {
             new ArrayList<DirectoryTree>()
         }
@@ -50,5 +53,19 @@ class DefaultFileWatcherTest extends Specification {
         fileWatcher.watch(inputs, listener)
         then:
         thrown IllegalStateException
+        when: "stop is called"
+        fileWatcher.stop()
+        then: "execution result is waited"
+        1 * future.get(10, TimeUnit.SECONDS)
+        when: "watch is called after stopping, it will succeed"
+        fileWatcher.watch(inputs, listener)
+        then:
+        1 * executor.submit(_)
+        1 * inputs.getDirectoryTrees() >> {
+            new ArrayList<DirectoryTree>()
+        }
+        1 * inputs.getFiles() >> {
+            new ArrayList<File>()
+        }
     }
 }

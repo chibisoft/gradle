@@ -21,7 +21,6 @@ public class DefaultFileWatcher implements FileWatcher {
         this.executor = executor;
     }
 
-
     @Override
     public synchronized void watch(FileWatchInputs inputs, FileWatchListener listener) {
         if(runningFlag.get()) {
