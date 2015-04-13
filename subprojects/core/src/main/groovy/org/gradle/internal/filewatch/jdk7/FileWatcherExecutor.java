@@ -19,8 +19,10 @@ package org.gradle.internal.filewatch.jdk7;
 import com.sun.nio.file.ExtendedWatchEventModifier;
 import com.sun.nio.file.SensitivityWatchEventModifier;
 import org.gradle.api.file.DirectoryTree;
+import org.gradle.api.file.FileTreeElement;
 import org.gradle.api.file.RelativePath;
 import org.gradle.api.internal.file.DefaultFileTreeElement;
+import org.gradle.api.specs.Spec;
 import org.gradle.internal.filewatch.FileWatchEvent;
 import org.gradle.internal.filewatch.FileWatchListener;
 import org.gradle.internal.filewatch.FileWatcher;
@@ -145,7 +147,7 @@ class FileWatcherExecutor implements Runnable {
                         if (kind == ENTRY_CREATE) {
                             if (Files.isDirectory(fullPath, NOFOLLOW_LINKS) && !supportsWatchingSubTree()) {
                                 try {
-                                    registerSubTree(watchService, fullPath);
+                                    registerSubTree(watchService, fullPath, watchedTree);
                                 } catch (IOException e) {
                                     // ignore
                                 }
@@ -175,7 +177,7 @@ class FileWatcherExecutor implements Runnable {
 
     private FileTreeElement toFileTreeElement(Path fullPath, Path relativePath, RelativePath parentPath) {
         File file = fullPath.toFile();
-        return new FileTreeElement(file, toRelativePath(file, relativePath, parentPath));
+        return new CustomFileTreeElement(file, toRelativePath(file, relativePath, parentPath));
     }
 
     protected void handleNotifyChanges() {
@@ -231,21 +233,29 @@ class FileWatcherExecutor implements Runnable {
         pathToDirectoryTree = new HashMap<Path, DirectoryTree>();
         for (DirectoryTree tree : directoryTrees) {
             Path path = dirToPath(tree.getDir());
-            pathToDirectoryTree.put(path, tree);
-            registerSubTree(watchService, path);
+            registerSubTree(watchService, path, tree);
         }
     }
 
-    private void registerSubTree(final WatchService watchService, Path path) throws IOException {
+    private void registerSubTree(final WatchService watchService, final Path treePath, final DirectoryTree tree) throws IOException {
         if (supportsWatchingSubTree()) {
-            registerSinglePath(watchService, path);
+            registerSinglePath(watchService, treePath);
+            pathToDirectoryTree.put(treePath, tree);
         } else {
-            Files.walkFileTree(path, new SimpleFileVisitor<Path>() {
+            final RelativePath parentPath = toRelativePath(treePath.toFile(), treePath, null);
+            final Spec<FileTreeElement> excludeSpec = tree.getPatterns().getAsExcludeSpec();
+            Files.walkFileTree(treePath, new SimpleFileVisitor<Path>() {
                 @Override
                 public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs)
                         throws IOException {
-                    registerSinglePathNoSubtree(watchService, dir);
-                    return FileVisitResult.CONTINUE;
+                    FileTreeElement fileTreeElement = toFileTreeElement(dir, treePath.relativize(dir), parentPath);
+                    if(!excludeSpec.isSatisfiedBy(fileTreeElement)) {
+                        registerSinglePathNoSubtree(watchService, dir);
+                        pathToDirectoryTree.put(dir, tree);
+                        return FileVisitResult.CONTINUE;
+                    } else {
+                        return FileVisitResult.SKIP_SUBTREE;
+                    }
                 }
             });
         }
@@ -271,8 +281,8 @@ class FileWatcherExecutor implements Runnable {
         }
     }
 
-    private static class FileTreeElement extends DefaultFileTreeElement {
-        public FileTreeElement(File file, RelativePath relativePath) {
+    private static class CustomFileTreeElement extends DefaultFileTreeElement {
+        public CustomFileTreeElement(File file, RelativePath relativePath) {
             super(file, relativePath, null, null);
         }
     }

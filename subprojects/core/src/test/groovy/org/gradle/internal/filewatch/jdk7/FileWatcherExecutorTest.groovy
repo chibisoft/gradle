@@ -101,6 +101,7 @@ class FileWatcherExecutorTest extends Specification {
         def fileSystem = Mock(FileSystem)
         fileSystem.provider() >> fileSystemProvider
         dirPathMock.getFileSystem() >> fileSystem
+        dirPathMock.toFile() >> dir
         dirToPathMocks.put(dir, dirPathMock)
         def dirWatchKey = Mock(WatchKey)
         def dirAttributes  = Mock(BasicFileAttributes)
@@ -109,6 +110,10 @@ class FileWatcherExecutorTest extends Specification {
 
         def subDirPathMock = Mock(Path)
         subDirPathMock.getFileSystem() >> fileSystem
+        subDirPathMock.toFile() >> new File(dir, "subdir")
+
+        dirPathMock.relativize(subDirPathMock) >> subDirPathMock
+        subDirPathMock.toString() >> "subdir"
 
         def directoryStream = Mock(DirectoryStream)
         fileSystemProvider.newDirectoryStream(dirPathMock, Files.AcceptAllFilter.FILTER) >> directoryStream
@@ -141,7 +146,7 @@ class FileWatcherExecutorTest extends Specification {
 
         1 * dirWatchKey.watchable() >> dirPathMock
         1 * dirWatchKey.pollEvents() >> [mockWatchEvent]
-        1 * dirPathMock.toFile() >> dir
+
 
         mockWatchEvent.kind() >> StandardWatchEventKinds.ENTRY_MODIFY
         mockWatchEvent.context() >> modifiedFilePath
