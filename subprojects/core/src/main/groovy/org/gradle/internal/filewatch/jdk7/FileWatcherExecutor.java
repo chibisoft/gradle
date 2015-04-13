@@ -19,6 +19,8 @@ package org.gradle.internal.filewatch.jdk7;
 import com.sun.nio.file.ExtendedWatchEventModifier;
 import com.sun.nio.file.SensitivityWatchEventModifier;
 import org.gradle.api.file.DirectoryTree;
+import org.gradle.api.file.RelativePath;
+import org.gradle.api.internal.file.DefaultFileTreeElement;
 import org.gradle.internal.filewatch.FileWatchEvent;
 import org.gradle.internal.filewatch.FileWatchListener;
 import org.gradle.internal.filewatch.FileWatcher;
@@ -34,7 +36,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.nio.file.LinkOption.NOFOLLOW_LINKS;
 import static java.nio.file.StandardWatchEventKinds.ENTRY_CREATE;
-import static java.nio.file.StandardWatchEventKinds.ENTRY_DELETE;
 import static java.nio.file.StandardWatchEventKinds.OVERFLOW;
 
 /**
@@ -52,10 +53,11 @@ class FileWatcherExecutor implements Runnable {
     private final Collection<DirectoryTree> directoryTrees;
     private final Collection<File> files;
     private final FileWatchListener listener;
+    private final WatchEvent.Modifier[] watchModifiers;
     private long lastEventReceivedMillis;
     private boolean pendingNotification;
-    private WatchEvent.Modifier[] watchModifiers;
     private Map<Path, Set<File>> individualFilesByParentPath;
+    private Map<Path, DirectoryTree> pathToDirectoryTree;
 
     public FileWatcherExecutor(FileWatcher fileWatcher, AtomicBoolean runningFlag, FileWatchListener listener, Collection<DirectoryTree> directoryTrees, Collection<File> files) {
         this.fileWatcher = fileWatcher;
@@ -103,7 +105,7 @@ class FileWatcherExecutor implements Runnable {
         }
     }
 
-    private void watchLoop(WatchService watchService) throws InterruptedException {
+    protected void watchLoop(WatchService watchService) throws InterruptedException {
         pendingNotification = false;
         while (watchLoopRunning()) {
             WatchKey watchKey = watchService.poll(POLL_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
@@ -115,8 +117,12 @@ class FileWatcherExecutor implements Runnable {
         }
     }
 
-    private void handleWatchKey(WatchService watchService, WatchKey watchKey) {
+    protected void handleWatchKey(WatchService watchService, WatchKey watchKey) {
         Path watchedPath = (Path)watchKey.watchable();
+
+        RelativePath parentPath = toRelativePath(watchedPath.toFile(), watchedPath, null);
+        DirectoryTree watchedTree = pathToDirectoryTree.get(watchedPath);
+        Set<File> individualFiles = individualFilesByParentPath.get(watchedPath);
 
         for (WatchEvent<?> event : watchKey.pollEvents()) {
             WatchEvent.Kind kind = event.kind();
@@ -133,23 +139,43 @@ class FileWatcherExecutor implements Runnable {
                 Path relativePath = ev.context();
                 Path fullPath = watchedPath.resolve(relativePath);
 
-                if (kind == ENTRY_CREATE) {
-                    if (Files.isDirectory(fullPath, NOFOLLOW_LINKS) && !supportsWatchingSubTree()) {
-                        try {
-                            registerSubTree(watchService, fullPath);
-                        } catch (IOException e) {
-                            // ignore
+                if(watchedTree != null) {
+                    FileTreeElement fileTreeElement = toFileTreeElement(fullPath, relativePath, parentPath);
+                    if(!watchedTree.getPatterns().getAsExcludeSpec().isSatisfiedBy(fileTreeElement)) {
+                        if (kind == ENTRY_CREATE) {
+                            if (Files.isDirectory(fullPath, NOFOLLOW_LINKS) && !supportsWatchingSubTree()) {
+                                try {
+                                    registerSubTree(watchService, fullPath);
+                                } catch (IOException e) {
+                                    // ignore
+                                }
+                            }
+                        }
+                        if(watchedTree.getPatterns().getAsIncludeSpec().isSatisfiedBy(fileTreeElement)) {
+                            pendingNotification = true;
                         }
                     }
-                } else if (kind == ENTRY_DELETE) {
-                    if (fullPath.equals(watchedPath)) {
-                        watchKey.cancel();
+                } else if (individualFiles != null) {
+                    File fullFile = fullPath.toFile().getAbsoluteFile();
+                    if(individualFiles.contains(fullFile)) {
+                        pendingNotification = true;
                     }
+                } else {
+                    System.err.println("unmapped path " + fullPath.toString());
                 }
             }
         }
 
         watchKey.reset();
+    }
+
+    private RelativePath toRelativePath(File file, Path path, RelativePath parentPath) {
+        return RelativePath.parse(!file.isDirectory(), parentPath, path.toString());
+    }
+
+    private FileTreeElement toFileTreeElement(Path fullPath, Path relativePath, RelativePath parentPath) {
+        File file = fullPath.toFile();
+        return new FileTreeElement(file, toRelativePath(file, relativePath, parentPath));
     }
 
     protected void handleNotifyChanges() {
@@ -190,7 +216,7 @@ class FileWatcherExecutor implements Runnable {
                 children = new LinkedHashSet<File>();
                 individualFilesByParentPath.put(parent, children);
             }
-            children.add(file);
+            children.add(file.getAbsoluteFile());
         }
         for (Path parent : individualFilesByParentPath.keySet()) {
             registerSinglePathNoSubtree(watchService, parent);
@@ -202,8 +228,11 @@ class FileWatcherExecutor implements Runnable {
     }
 
     private void registerDirTreeInputs(WatchService watchService) throws IOException {
+        pathToDirectoryTree = new HashMap<Path, DirectoryTree>();
         for (DirectoryTree tree : directoryTrees) {
-            registerSubTree(watchService, dirToPath(tree.getDir()));
+            Path path = dirToPath(tree.getDir());
+            pathToDirectoryTree.put(path, tree);
+            registerSubTree(watchService, path);
         }
     }
 
@@ -239,6 +268,12 @@ class FileWatcherExecutor implements Runnable {
             return FileSystems.getDefault().newWatchService();
         } catch (IOException e) {
             throw new RuntimeException("IOException in creating WatchService", e);
+        }
+    }
+
+    private static class FileTreeElement extends DefaultFileTreeElement {
+        public FileTreeElement(File file, RelativePath relativePath) {
+            super(file, relativePath, null, null);
         }
     }
 }

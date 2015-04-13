@@ -17,6 +17,7 @@
 package org.gradle.internal.filewatch.jdk7
 
 import org.gradle.api.file.DirectoryTree
+import org.gradle.api.tasks.util.PatternSet
 import org.gradle.internal.filewatch.FileWatchListener
 import org.gradle.internal.filewatch.FileWatcher
 import spock.lang.Specification
@@ -88,6 +89,7 @@ class FileWatcherExecutorTest extends Specification {
         def dir = new File("a2/b2")
         def directoryTree = Mock(DirectoryTree)
         directoryTree.getDir() >> dir
+        directoryTree.getPatterns() >> new PatternSet()
         directories << directoryTree
         def dirPathMock = Mock(Path)
         def fileSystemProvider = Mock(FileSystemProvider)
@@ -134,6 +136,7 @@ class FileWatcherExecutorTest extends Specification {
 
         1 * dirWatchKey.watchable() >> dirPathMock
         1 * dirWatchKey.pollEvents() >> [mockWatchEvent]
+        1 * dirPathMock.toFile() >> dir
 
         mockWatchEvent.kind() >> StandardWatchEventKinds.ENTRY_MODIFY
         mockWatchEvent.context() >> modifiedFilePath
@@ -142,6 +145,7 @@ class FileWatcherExecutorTest extends Specification {
 
         then: 'relative path gets resolved'
         1 * dirPathMock.resolve(modifiedFilePath) >> { Path other -> other }
+        1 * modifiedFilePath.toFile() >> new File(dir, "modifiedfile")
 
         then: 'WatchKey gets resetted'
         1 * dirWatchKey.reset()
