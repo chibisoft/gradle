@@ -32,7 +32,7 @@ import spock.lang.Specification
 /**
  * Created by lari on 13/04/15.
  */
-class DefaultFileWatchServiceTest extends Specification {
+class DefaultFileWatchServiceIntegrationTest extends Specification {
     @Rule
     public final TestNameTestDirectoryProvider testDir = new TestNameTestDirectoryProvider();
     DefaultFileWatchService fileWatchService
