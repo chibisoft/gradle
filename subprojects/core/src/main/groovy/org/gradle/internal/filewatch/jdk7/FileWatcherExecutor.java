@@ -53,7 +53,7 @@ class FileWatcherExecutor implements Runnable {
     private final Collection<File> files;
     private final FileWatchListener listener;
     private long lastEventReceivedMillis;
-    private boolean foundChanges;
+    private boolean pendingNotification;
     private WatchEvent.Modifier[] watchModifiers;
     private Map<Path, Set<File>> individualFilesByParentPath;
 
@@ -104,7 +104,7 @@ class FileWatcherExecutor implements Runnable {
     }
 
     private void watchLoop(WatchService watchService) throws InterruptedException {
-        foundChanges = false;
+        pendingNotification = false;
         while (watchLoopRunning()) {
             WatchKey watchKey = watchService.poll(POLL_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
             if (watchKey != null) {
@@ -124,7 +124,7 @@ class FileWatcherExecutor implements Runnable {
             if (kind == OVERFLOW) {
                 // overflow event occurs when some change event might have been lost
                 // notify changes in that case
-                foundChanges = true;
+                pendingNotification = true;
                 continue;
             }
 
@@ -152,11 +152,15 @@ class FileWatcherExecutor implements Runnable {
         watchKey.reset();
     }
 
-    private void handleNotifyChanges() {
-        if (foundChanges && (QUIET_PERIOD_MILLIS <= 0 || System.currentTimeMillis() - lastEventReceivedMillis > QUIET_PERIOD_MILLIS)) {
+    protected void handleNotifyChanges() {
+        if (pendingNotification && quietPeriodBeforeNotifyingHasElapsed()) {
             notifyChanged();
-            foundChanges = false;
+            pendingNotification = false;
         }
+    }
+
+    protected boolean quietPeriodBeforeNotifyingHasElapsed() {
+        return QUIET_PERIOD_MILLIS <= 0 || System.currentTimeMillis() - lastEventReceivedMillis > QUIET_PERIOD_MILLIS;
     }
 
     protected boolean watchLoopRunning() {
