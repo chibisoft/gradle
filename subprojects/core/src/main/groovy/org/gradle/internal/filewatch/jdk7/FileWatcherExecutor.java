@@ -205,8 +205,9 @@ class FileWatcherExecutor implements Runnable {
     }
 
     private void registerSubTree(final WatchService watchService, Path path) throws IOException {
-        registerSinglePath(watchService, path);
-        if (!supportsWatchingSubTree()) {
+        if (supportsWatchingSubTree()) {
+            registerSinglePath(watchService, path);
+        } else {
             Files.walkFileTree(path, new SimpleFileVisitor<Path>() {
                 @Override
                 public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs)

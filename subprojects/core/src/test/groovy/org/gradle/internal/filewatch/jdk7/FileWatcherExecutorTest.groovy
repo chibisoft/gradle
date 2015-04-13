@@ -22,7 +22,9 @@ import org.gradle.internal.filewatch.FileWatchListener
 import org.gradle.internal.filewatch.FileWatcher
 import spock.lang.Specification
 
+import java.nio.file.DirectoryStream
 import java.nio.file.FileSystem
+import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.WatchKey
 import java.nio.file.WatchService
@@ -103,6 +105,10 @@ class FileWatcherExecutorTest extends Specification {
         dirToPathMocks.put(dir, dirPathMock)
         def dirWatchKey = Mock(WatchKey)
         def dirAttributes  = Mock(BasicFileAttributes)
+        dirAttributes.isDirectory() >> true
+        def directoryStream = Mock(DirectoryStream)
+        fileSystemProvider.newDirectoryStream(dirPathMock, Files.AcceptAllFilter.FILTER) >> directoryStream
+        directoryStream.iterator() >> Collections.emptyIterator()
 
         when:
         fileWatcherExecutor.run()
@@ -110,7 +116,7 @@ class FileWatcherExecutorTest extends Specification {
         filePathMock.register(watchService, FileWatcherExecutor.WATCH_KINDS, FileWatcherExecutor.WATCH_MODIFIERS) >> {
             fileWatchKey
         }
-        dirPathMock.register(watchService, FileWatcherExecutor.WATCH_KINDS, FileWatcherExecutor.WATCH_MODIFIERS) >> {
+        1 * dirPathMock.register(watchService, FileWatcherExecutor.WATCH_KINDS, FileWatcherExecutor.WATCH_MODIFIERS) >> {
             dirWatchKey
         }
         fileSystemProvider.readAttributes(dirPathMock, _, _) >> {
